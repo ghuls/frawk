@@ -301,11 +301,14 @@ fn simple_rc() {
 }
 
 #[test]
-fn trivial_parallel_rc() {
-    let expected = "hi\n";
+fn statement_closed_by_right_brace() {
+    let expected = "test\n";
     for (prog, rc) in [
-        (r#"BEGIN { print "hi"; exit 0; print "there"; }"#, 0),
-        (r#"END { print "hi"; exit 1; print "there"; }"#, 1),
+        (r#"BEGIN { if (1 == 1) print "test" }"#, 0),
+        (r#"BEGIN { if (1 == 1) if (2==2) print "test" }"#, 0),
+        (r#"BEGIN { if (1 == 1) if (2==3) print "wrongtest"; else print "test" }"#, 0),
+        (r#"BEGIN { for (i=0; i<1; i++) print "test" }"#, 0),
+        (r#"BEGIN { print "test"; while(n-->0){}}"#, 0),
     ] {
         for backend_arg in BACKEND_ARGS {
             Command::cargo_bin("frawk")

@@ -34,6 +34,7 @@ pub trait Line<'a>: Default {
     fn nf(&mut self, pat: &Str, rc: &mut RegexCache) -> Result<usize>;
     fn get_col(&mut self, col: Int, pat: &Str, ofs: &Str, rc: &mut RegexCache) -> Result<Str<'a>>;
     fn set_col(&mut self, col: Int, s: &Str<'a>, pat: &Str, rc: &mut RegexCache) -> Result<()>;
+    fn set_nf(&mut self, nf: usize, pat: &Str, rc: &mut RegexCache) -> Result<()>;
 }
 
 pub trait LineReader: Sized {
@@ -203,6 +204,37 @@ impl<'a> Line<'a> for DefaultLine {
             self.fields.resize_with(col + 1, Str::default);
         }
         self.fields[col] = s.clone().unmoor();
+        self.diverged = true;
+        Ok(())
+    }
+    fn set_nf(&mut self, nf: usize, pat: &Str, rc: &mut RegexCache) -> Result<()> {
+        if self.used_fields.get(0) {
+            if self.used_fields != FieldSet::all() {
+                // If $0 is used in the program and used_fields is not FieldSet::all() at the time
+                // NF is redefined, all field slot needed to construct $0 later need to be populated
+                // from the original line and fields that were already set neet to be copied over
+                // (at least those that are <= NF).
+                let mut full_fields = Vec::new();
+                rc.split_regex(pat, &self.line, &FieldSet::all(), &mut full_fields)?;
+                let max_field_to_copy = if nf < full_fields.len() {
+                    nf
+                } else {
+                    full_fields.len()
+                };
+                for (i, field) in self.fields.iter().enumerate() {
+                    if (i < max_field_to_copy) && self.used_fields.get(i + 1) {
+                        full_fields[i] = field.clone();
+                    }
+                }
+                self.fields = full_fields;
+                self.used_fields = FieldSet::all();
+            }
+        }
+        if nf < self.fields.len() {
+            self.fields.truncate(nf);
+        } else {
+            self.fields.resize_with(nf, Str::default);
+        }
         self.diverged = true;
         Ok(())
     }

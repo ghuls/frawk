@@ -422,6 +422,23 @@ fn dont_reorder_files_with_f() {
     }
 }
 
+#[test]
+fn set_nf() {
+    let expected = "for NF=1\nRussia\nRussia,,,,\nfor NF=2\nCanada,random\nCanada,random,,,\nfor NF=3\nChina,random,866\nChina,random,866,,\nfor NF=4\nUSA,random,219,North\nUSA,random,219,North,\nfor NF=5\nBrazil,random,116,South,extra\nBrazil,random,116,South,extra\n";
+    let countries = "Russia\t8650\t262\tAsia\nCanada\t3852\t24\tNorth America\nChina\t3692\t866\tAsia\nUSA\t3615\t219\tNorth America\nBrazil\t3286\t116\tSouth America\n";
+    let (dir, data) = file_from_string("countries", countries);
+    let prog = "BEGIN { OFS = \",\"; } { $2 = \"random\"; $5 = \"extra\"; NF = NR; print \"for NF=\" NF; print $0; print $1, $2, $3, $4, $5; }";
+    for backend_arg in BACKEND_ARGS {
+        Command::cargo_bin("frawk")
+            .unwrap()
+            .arg(backend_arg)
+            .arg(&prog)
+            .arg(fname_to_string(&data))
+            .assert()
+            .stdout(String::from(expected));
+    }
+}
+
 fn fname_to_string(path: &std::path::Path) -> String {
     path.to_owned().into_os_string().into_string().unwrap()
 }

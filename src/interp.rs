@@ -1213,6 +1213,14 @@ impl<'a, LR: LineReader> Interp<'a, LR> {
                     StoreVarInt(var, src) => {
                         let src = *src;
                         let s = *self.get(src);
+                        if let NF = *var {
+                            if s < 0 {
+                                return err!("NF set to negative value");
+                            }
+                            let nf = s as usize;
+                            self.line
+                                .set_nf(nf, &self.core.vars.fs, &mut self.core.regexes)?;
+                        }
                         self.core.vars.store_int(*var, s)?;
                     }
                     LoadVarIntStrMap(dst, var) => {

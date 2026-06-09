@@ -1020,6 +1020,19 @@ pub(crate) unsafe extern "C" fn load_var_int(rt: *mut c_void, var: usize) -> Int
 pub(crate) unsafe extern "C" fn store_var_int(rt: *mut c_void, var: usize, i: Int) {
     let runtime = &mut *(rt as *mut Runtime);
     if let Ok(var) = Variable::try_from(var) {
+        if let Variable::NF = var {
+            if i < 0 {
+                fail!(runtime, "NF set to negative value");
+            }
+            let nf = i as usize;
+            if let Err(e) = with_input!(&mut runtime.input_data, |(line, _)| line.set_nf(
+                nf,
+                &runtime.core.vars.fs,
+                &mut runtime.core.regexes,
+            )) {
+                fail!(runtime, "store_var_int(NF): {}", e);
+            }
+        }
         try_abort!(runtime, runtime.core.vars.store_int(var, i));
     } else {
         fail!(runtime, "invalid variable code={}", var)

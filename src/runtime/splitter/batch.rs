@@ -367,6 +367,11 @@ impl<'a> super::Line<'a> for Line {
     ) -> Result<()> {
         Ok(())
     }
+
+    // Setting number of fields for CSV doesn't work. We refuse it outright.
+    fn set_nf(&mut self, _nf: usize, _pat: &Str, _rc: &mut super::RegexCache) -> Result<()> {
+        Ok(())
+    }
 }
 
 impl Line {

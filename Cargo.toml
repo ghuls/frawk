@@ -45,7 +45,7 @@ cranelift-frontend = "0.132.1"
 cranelift-module = "0.132.1"
 cranelift-native = "0.132.1"
 cranelift-jit = "0.132.1"
-fast-float = "0.2"
+fast-float2 = "0.2.3"
 bumpalo = { version = "3.20.3", features = ["collections"] }
 target-lexicon = "0.13.5"
 

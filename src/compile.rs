@@ -2005,18 +2005,16 @@ impl<'a, 'b> View<'a, 'b> {
 /// This works as a special case for regex constant folding, where we can compile matches into
 /// simple "startswith" calls. This sort of trick is still only used in a few places.
 fn extract_anchored_literal(text: &str) -> Option<Arc<[u8]>> {
-    use regex_syntax::ast::{parse, Assertion, AssertionKind, Ast, Concat};
+    use regex_syntax::ast::{parse, AssertionKind, Ast};
     // We should only call extract_anchored_literal
     let re_ast = parse::Parser::new().parse(text).unwrap();
     let mut bs = Vec::new();
-    if let Ast::Concat(Concat { asts, .. }) = &re_ast {
+    if let Ast::Concat(concat) = &re_ast {
+        let asts = &concat.asts;
         if asts.len() >= 2
             && matches!(
-                asts[0],
-                Ast::Assertion(Assertion {
-                    kind: AssertionKind::StartLine,
-                    ..
-                })
+                &asts[0],
+                Ast::Assertion(assertion) if matches!(assertion.kind, AssertionKind::StartLine)
             )
         {
             for ast in &asts[1..] {

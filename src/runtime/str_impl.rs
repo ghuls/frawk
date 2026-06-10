@@ -1638,7 +1638,7 @@ mod bench {
     use test::{black_box, Bencher};
 
     fn bench_max_min(b: &mut Bencher, min: i64, max: i64) {
-        use rand::{rng as rand_rng, Rng};
+        use rand::{rng as rand_rng, RngExt};
         let mut rng = rand_rng();
         let mut v = Vec::new();
         let size = 1 << 12;

@@ -68,7 +68,7 @@ pub fn hextoi(mut bs: &[u8]) -> i64 {
 
 /// Parse a floating-poing number from `bs`, returning 0 if one isn't there.
 pub fn strtod(bs: &[u8]) -> f64 {
-    if let Ok((f, _)) = fast_float::parse_partial(bs) {
+    if let Ok((f, _)) = fast_float2::parse_partial(bs) {
         f
     } else {
         0.0f64

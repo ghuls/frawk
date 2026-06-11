@@ -598,14 +598,10 @@ impl<'a> Str<'a> {
             subst.with_bytes(|subst| {
                 // skip first
                 let start = if which > 1 {
-                    let start = pat
-                        .find_iter(s)
-                        .skip(
-                            which as usize - 2, // 1 to convert from 1-based to 0-based
-                                                // 1 to take the last "next" into account
-                        )
-                        .next();
+                    // convert from 1-based to 0-based and get match position of match before `which`
+                    let start = pat.find_iter(s).nth(which as usize - 2);
                     if let Some(start) = start {
+                        // get postion just before match position of `which`
                         start.end()
                     } else {
                         // not enough matches, so return the string verbatim

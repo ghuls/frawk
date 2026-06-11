@@ -406,7 +406,7 @@ impl<'a> Tokenizer<'a> {
                         .unwrap()
                         .1
                         .as_ref()
-                        .map_or(true, |x| x.is_match(&self.text[start + len..]))
+                        .is_none_or(|x| x.is_match(&self.text[start + len..]))
                 {
                     return Some((tok.clone(), len));
                 }

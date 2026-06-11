@@ -1370,7 +1370,7 @@ fn process_match(matched: &[u8], subst: &[u8], w: &mut impl Write) -> io::Result
             b'&' => {
                 if escaped {
                     w.write_all(&subst[start..i - 1])?;
-                    w.write_all(&[b'&'])?;
+                    w.write_all(b"&")?;
                 } else {
                     w.write_all(&subst[start..i])?;
                     w.write_all(matched)?;
@@ -1421,7 +1421,7 @@ fn process_match_gen(matched: Captures, subst: &[u8], w: &mut impl Write) -> io:
             b'&' => {
                 if escaped {
                     w.write_all(&subst[start..i - 1])?;
-                    w.write_all(&[b'&'])?;
+                    w.write_all(b"&")?;
                 } else {
                     w.write_all(&subst[start..i])?;
                     w.write_all(matched.get(0).unwrap().as_bytes())?;

@@ -731,7 +731,7 @@ impl<'a> Str<'a> {
             return Str::from_rep(Inline::from_unchecked(&bytes[from..to]).into());
         }
         let tag = self.rep().get_tag();
-        let u32_max = u32::max_value() as usize;
+        let u32_max = u32::MAX as usize;
         let mut may_overflow = to > u32_max || from > u32_max;
         if !may_overflow && tag == StrTag::Shared {
             // If we are taking a slice of an existing slice, then we can overflow by adding the
@@ -1323,7 +1323,7 @@ impl Buf {
                 )
             }
         } else */
-        if likely(from <= u32::max_value() as usize && to <= u32::max_value() as usize) {
+        if likely(from <= u32::MAX as usize && to <= u32::MAX as usize) {
             Str::from_rep(
                 Shared {
                     buf: self.clone(),
@@ -1664,7 +1664,7 @@ mod bench {
 
     #[bench]
     fn bench_itoa_large(b: &mut Bencher) {
-        bench_max_min(b, i64::min_value(), i64::max_value())
+        bench_max_min(b, i64::MIN, i64::MAX)
     }
 
     #[bench]

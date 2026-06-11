@@ -1689,7 +1689,7 @@ where
                 if bi == builtins::Function::Substr && args.len() == 2 {
                     // We clamp indexes anyways, we'll just put a big number in as the
                     // rightmost index.
-                    prim_args.push(PrimVal::ILit(i64::max_value()));
+                    prim_args.push(PrimVal::ILit(i64::MAX));
                 }
 
                 // srand() => the special "reseed rng" function

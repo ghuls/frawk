@@ -1546,9 +1546,9 @@ where
         // Create update node if necessary.
         let u = match update {
             Some(update) => {
-                let u = Some(self.f.cfg.add_node(Default::default()));
-                self.convert_stmt(update, u.unwrap())?;
-                u
+                let u = self.f.cfg.add_node(Default::default());
+                self.convert_stmt(update, u)?;
+                Some(u)
             },
             None => None,
         };

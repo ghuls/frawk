@@ -109,10 +109,10 @@ impl FieldSet {
 
     /// Return a safe upper bound on the maximum integer value column represented by this set.
     ///
-    /// The `fi` value is ignored. for full sets we return u32::max_value()
+    /// The `fi` value is ignored. for full sets we return u32::MAX
     pub fn max_value(&self) -> u32 {
         if self == &FieldSet::all() {
-            u32::max_value()
+            u32::MAX
         } else {
             self.max_bit()
         }
@@ -233,7 +233,7 @@ mod tests {
     #[test]
     fn max_value() {
         assert_eq!(FieldSet::singleton(23).max_value(), 24);
-        assert_eq!(FieldSet::singleton(1024).max_value(), u32::max_value());
+        assert_eq!(FieldSet::singleton(1024).max_value(), u32::MAX);
         assert_eq!(FieldSet::singleton(0).max_value(), 1);
     }
 }

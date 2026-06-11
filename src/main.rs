@@ -509,7 +509,7 @@ fn main() {
         var_decs: matches
             .get_many::<String>("var")
             .map(|x| x.cloned().collect())
-            .unwrap_or_else(Vec::new),
+            .unwrap_or_default(),
         output_sep,
         scalars: PreludeScalars {
             escaper,

@@ -264,10 +264,7 @@ where
         self.1
     }
     fn filename(&self) -> Str<'static> {
-        self.0
-            .last()
-            .map(LineReader::filename)
-            .unwrap_or_else(Str::default)
+        self.0.last().map(LineReader::filename).unwrap_or_default()
     }
     fn read_line(&mut self, pat: &Str, rc: &mut RegexCache) -> Result<(bool, R::Line)> {
         let mut line = R::Line::default();

@@ -685,9 +685,9 @@ fn record_ident(
     id: Ident,
     blk: NodeIx,
 ) {
-    defsites.entry(id).or_insert(HashSet::default()).insert(blk);
+    defsites.entry(id).or_default().insert(blk);
 
-    orig.entry(blk).or_insert(HashSet::default()).insert(id);
+    orig.entry(blk).or_default().insert(id);
 }
 
 impl<'a, 'b, I: Hash + Eq + Clone + Default + std::fmt::Display + std::fmt::Debug> View<'a, 'b, I>
@@ -1873,7 +1873,7 @@ where
                             .expect("node in dominance frontier must be valid")
                             .q
                             .push_front(stmt);
-                        phis.entry(ident).or_insert(HashSet::default()).insert(d_ix);
+                        phis.entry(ident).or_default().insert(d_ix);
                         if !defsites.contains(&d_ix) {
                             worklist.insert(d_ix);
                         }

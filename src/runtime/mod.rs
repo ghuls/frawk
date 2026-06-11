@@ -639,7 +639,7 @@ impl<K: Hash + Eq + Clone, V: Inc + Default + Clone> SharedMap<K, V> {
         if let Some(k) = slf.get_mut(k) {
             f(k)
         } else {
-            f(slf.entry(k.clone()).or_insert(Default::default()))
+            f(slf.entry(k.clone()).or_default())
         }
     }
 }

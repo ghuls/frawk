@@ -1637,7 +1637,7 @@ where
         }
         match bi {
             Either::Left(fname) => {
-                return if let Some(i) = self.func_table.get(&FunctionName::Named(fname.clone())) {
+                if let Some(i) = self.func_table.get(&FunctionName::Named(fname.clone())) {
                     // For field separator optimizations, any UDF calls in the BEGIN block of main
                     // causes fallback to the generic regex-based splitter.
                     //
@@ -1650,7 +1650,7 @@ where
                     Ok((open, PrimExpr::CallUDF(*i, prim_args)))
                 } else {
                     err!("Call to unknown function \"{}\"", fname)
-                };
+                }
             }
             // Now to "fill in the extras."
             Either::Right(mut bi) => {
@@ -1761,7 +1761,7 @@ where
                     open = next;
                     prim_args.push(v);
                 }
-                return Ok((open, PrimExpr::CallBuiltin(bi, prim_args)));
+                Ok((open, PrimExpr::CallBuiltin(bi, prim_args)))
             }
         }
     }

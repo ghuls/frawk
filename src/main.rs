@@ -503,9 +503,7 @@ fn main() {
         Some(x) => panic!("this case should be covered by clap argument validation: found unexpected opt-level value {}", x),
     };
     let raw = RawPrelude {
-        field_sep: matches
-            .get_one::<String>("field-separator")
-            .map(|s| s.clone()),
+        field_sep: matches.get_one::<String>("field-separator").cloned(),
         var_decs: matches
             .get_many::<String>("var")
             .map(|x| x.cloned().collect())

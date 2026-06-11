@@ -251,7 +251,7 @@ impl<'a> TryFrom<&'a str> for Function {
 pub(crate) trait IsSprintf {
     fn is_sprintf(&self) -> bool;
 }
-impl<'a> IsSprintf for &'a str {
+impl IsSprintf for &str {
     fn is_sprintf(&self) -> bool {
         *self == "sprintf"
     }

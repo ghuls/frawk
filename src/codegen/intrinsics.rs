@@ -1129,13 +1129,13 @@ str_compare! {
 
 #[inline(never)]
 pub(crate) unsafe extern "C" fn drop_iter_int(iter: *mut Int, len: usize) {
-    mem::drop(Box::from_raw(slice::from_raw_parts_mut(iter, len)))
+    mem::drop(Box::from_raw(std::ptr::slice_from_raw_parts_mut(iter, len)))
 }
 
 #[inline(never)]
 pub(crate) unsafe extern "C" fn drop_iter_str(iter: *mut U128, len: usize) {
     let p = iter as *mut Str;
-    mem::drop(Box::from_raw(slice::from_raw_parts_mut(p, len)))
+    mem::drop(Box::from_raw(std::ptr::slice_from_raw_parts_mut(p, len)))
 }
 
 unsafe fn wrap_args<'a>(

@@ -1474,13 +1474,23 @@ where
                 // Break statements unconditionally jump to the end of the loop.
                 // Continue statements jump to the update node or beginning.
                 match is_break {
-                    true => {self.f.cfg.add_edge(current_open, footer, Transition::null());},
+                    true => {
+                        self.f
+                            .cfg
+                            .add_edge(current_open, footer, Transition::null());
+                    }
                     false => {
                         match update {
                             Some(update) => {
-                                self.f.cfg.add_edge(current_open, update, Transition::null());
-                            },
-                            None => {self.f.cfg.add_edge(current_open, header, Transition::null());}
+                                self.f
+                                    .cfg
+                                    .add_edge(current_open, update, Transition::null());
+                            }
+                            None => {
+                                self.f
+                                    .cfg
+                                    .add_edge(current_open, header, Transition::null());
+                            }
                         };
                     }
                 };
@@ -1549,7 +1559,7 @@ where
                 let u = self.f.cfg.add_node(Default::default());
                 self.convert_stmt(update, u)?;
                 Some(u)
-            },
+            }
             None => None,
         };
         self.f.loop_ctx.push((h, f, u));
@@ -1560,9 +1570,7 @@ where
         // The body is a standalone graph.
         let (b_start, b_end) = if let Some(u) = u {
             let (start, mid) = self.standalone_block(body)?;
-            self.f
-                .cfg
-                .add_edge(mid, u, Transition::null());
+            self.f.cfg.add_edge(mid, u, Transition::null());
             let end = u;
             (start, end)
         } else {

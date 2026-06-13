@@ -641,10 +641,10 @@ impl<'a> Iterator for Tokenizer<'a> {
                     //   - Previous token is not a '{', as "{}" should not be converted to
                     //     invalid "{;}".
                     match self.prev_tok {
-                        Some(Tok::Semi)|Some(Tok::Newline)|Some(Tok::LBrace) => {
+                        Some(Tok::Semi) | Some(Tok::Newline) | Some(Tok::LBrace) => {
                             self.cur += 1;
                             self.spanned(ix, self.cur, Tok::RBrace)
-                        },
+                        }
                         _ => self.spanned(ix, self.cur, Tok::Semi),
                     }
                 }

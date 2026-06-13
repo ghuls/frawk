@@ -817,18 +817,16 @@ impl<'a> View<'a> {
         use compile::Ty::*;
         let cl_ty = self.get_ty(ty);
         let next_var = match ty {
-            Null | Int | Float => {
-                self.builder.declare_var(cl_ty)
-            },
+            Null | Int | Float => self.builder.declare_var(cl_ty),
             Str => {
                 let ptr_ty = self.ptr_to(cl_ty);
                 //self.builder.declare_var(next_var, ptr_ty);
                 self.builder.declare_var(ptr_ty)
-            },
+            }
             MapIntInt | MapIntFloat | MapIntStr | MapStrInt | MapStrFloat | MapStrStr => {
                 //self.builder.declare_var(next_var, cl_ty);
                 self.builder.declare_var(cl_ty)
-            },
+            }
             IterInt | IterStr => return err!("iterators cannot be declared"),
         };
         // Remember to allocate/initialize this variable in the header

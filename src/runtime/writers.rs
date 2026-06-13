@@ -863,7 +863,7 @@ pub mod testing {
     impl FakeFileInner {
         fn result(&self) -> io::Result<()> {
             if self.poison.load(Ordering::Acquire) {
-                Err(io::Error::new(io::ErrorKind::Other, "poisoned fake file!"))
+                Err(io::Error::other("poisoned fake file!"))
             } else {
                 Ok(())
             }

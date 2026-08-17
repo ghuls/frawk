@@ -50,9 +50,16 @@ use std::io::{self, BufReader, Write};
 use std::iter::once;
 use std::mem;
 
+#[cfg(all(feature = "use_jemalloc", feature = "use_mimalloc"))]
+compile_error!("Cannot enable both use_jemalloc and use_mimalloc features");
+
 #[cfg(feature = "use_jemalloc")]
 #[global_allocator]
 static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
+#[cfg(feature = "use_mimalloc")]
+#[global_allocator]
+static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 macro_rules! fail {
     ($($t:tt)*) => {{

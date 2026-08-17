@@ -77,6 +77,8 @@ $ cd <frawk repo path>
 $ cargo +nightly install --path .
 # Without LLVM, but with other recommended defaults
 $ cargo +nightly install --path . --no-default-features --features use_jemalloc,allow_avx2,unstable
+# Same as the latter, but use minalloc instead of jemalloc as memory allocator
+$ cargo +nightly install --path . --no-default-features --features use_mimalloc,allow_avx2,unstable
 ```
 
 frawk is now on [crates.io](https://crates.io/crates/frawk), so running 

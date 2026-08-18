@@ -305,10 +305,10 @@ impl Generator {
         // Now, build each global variable "by hand". Allocate a variable for it, assign it to the
         // address of a default value of the type in question on the stack.
         for (reg, ty) in globals {
-            let var = view.builder.declare_var(ptr_ty);
             let cl_ty = view.get_ty(ty);
             let ptr_ty = view.ptr_to(cl_ty);
-            view.builder.declare_var(ptr_ty);
+            let var = view.builder.declare_var(ptr_ty);
+            vars.push((var, ty));
 
             let slot = view.stack_slot_bytes(cl_ty.lane_bits() / 8);
             let default = view.default_value(ty)?;
@@ -820,11 +820,9 @@ impl<'a> View<'a> {
             Null | Int | Float => self.builder.declare_var(cl_ty),
             Str => {
                 let ptr_ty = self.ptr_to(cl_ty);
-                //self.builder.declare_var(next_var, ptr_ty);
                 self.builder.declare_var(ptr_ty)
             }
             MapIntInt | MapIntFloat | MapIntStr | MapStrInt | MapStrFloat | MapStrStr => {
-                //self.builder.declare_var(next_var, cl_ty);
                 self.builder.declare_var(cl_ty)
             }
             IterInt | IterStr => return err!("iterators cannot be declared"),

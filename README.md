@@ -77,16 +77,16 @@ $ cd <frawk repo path>
 $ cargo +nightly install --path .
 # Without LLVM, but with other recommended defaults
 $ cargo +nightly install --path . --no-default-features --features use_jemalloc,allow_avx2,unstable
-# Same as the latter, but use minalloc instead of jemalloc as memory allocator
+
+# Use mimalloc instead of jemalloc when building on Windows. Also works on Linux and Mac OS.
 $ cargo +nightly install --path . --no-default-features --features use_mimalloc,allow_avx2,unstable
+
+# Cross compile frawk for Windows with recommended features.
+$ cargo +nightly install --path . --target x86_64-pc-windows-gnu --no-default-features --features use_mimalloc,allow_avx2,unstable
 ```
 
 frawk is now on [crates.io](https://crates.io/crates/frawk), so running 
 `cargo +nightly install frawk` with the desired features should also work.
-
-While there are no _deliberate_ unix-isms in frawk, I have not tested it on Windows.
-frawk does appear to build on Windows with default features disabled; see comments on [this issue](https://github.com/ezrosent/frawk/issues/87)
-for more information.
 
 ## Bugs and Feature Requests
 

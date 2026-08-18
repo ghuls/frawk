@@ -19,6 +19,7 @@
 //! the stack and then pass pointers to them.
 use cranelift::prelude::*;
 use cranelift_codegen::ir::StackSlot;
+use cranelift_codegen::isa::CallConv;
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{default_libcall_names, FuncId, Linkage, Module};
 use hashbrown::HashMap;
@@ -1244,6 +1245,13 @@ impl<'a> Backend for View<'a> {
         let cl_sig = &mut self.shared.sig;
         cl_sig.params.clear();
         cl_sig.returns.clear();
+
+        // All external functions use `extern "sysv64"` because WindowsFastcall cannot
+        // return I128/U128 (Str) in two registers (rax+rdx), but would use a hidden sret
+        // pointer instead, corrupting arguments. Setting SystemV here ensures Cranelift
+        // generates matching call sites. On Linux/macOS this is a no-op.
+        cl_sig.call_conv = CallConv::SystemV;
+
         cl_sig
             .params
             .extend(sig.args.iter().cloned().map(AbiParam::new));

@@ -730,56 +730,100 @@ impl<'a, 'b> Jit for Generator<'a, 'b> {
         unsafe {
             let main = self.gen_main()?;
             self.verify()?;
-            self.optimize(main.iter().map(|(_, x)| x).cloned())?;
+            self.optimize()?;
             Ok(main.map(|(name, _)| LLVMGetFunctionAddress(self.engine, name) as *const u8))
         }
     }
 }
 
 impl<'a, 'b> Generator<'a, 'b> {
-    pub unsafe fn optimize(&mut self, mains: impl Iterator<Item = LLVMValueRef>) -> Result<()> {
-        // Based on optimize_module in weld, in turn based on similar code in the LLVM opt tool.
-        use llvm_sys::transforms::pass_manager_builder::*;
-        let mpm = LLVMCreatePassManager();
-        let fpm = LLVMCreateFunctionPassManagerForModule(self.module);
+    pub unsafe fn optimize(&mut self) -> Result<()> {
+        use llvm_sys::error::{LLVMDisposeErrorMessage, LLVMGetErrorMessage};
+        use llvm_sys::target_machine::{LLVMGetHostCPUFeatures, LLVMGetHostCPUName};
+        use llvm_sys::transforms::pass_builder::*;
 
-        let builder = LLVMPassManagerBuilderCreate();
-        LLVMPassManagerBuilderSetOptLevel(builder, self.cfg.opt_level as u32);
-        LLVMPassManagerBuilderSetSizeLevel(builder, 0);
-        match self.cfg.opt_level {
-            0 => {}
-            1 => LLVMPassManagerBuilderUseInlinerWithThreshold(builder, 50),
-            2 => LLVMPassManagerBuilderUseInlinerWithThreshold(builder, 100),
-            3 => LLVMPassManagerBuilderUseInlinerWithThreshold(builder, 250),
+        let pipeline = match self.cfg.opt_level {
+            0 => c_str!("default<O0>"),
+            1 => c_str!("default<O1>"),
+            2 => c_str!("default<O2>"),
+            3 => c_str!("default<O3>"),
             _ => return err!("unrecognized opt level"),
         };
 
-        LLVMPassManagerBuilderPopulateFunctionPassManager(builder, fpm);
-        LLVMPassManagerBuilderPopulateModulePassManager(builder, mpm);
-        LLVMPassManagerBuilderDispose(builder);
-
-        for f in self.decls.iter() {
-            if f.val.is_null() {
-                // unused functions are given null values.
-                continue;
+        // LLVMCreateJITCompilerForModule exposes the backend optimization level but not
+        // EngineBuilder::setMCPU/setMAttrs. Attach LLVM's host CPU and feature strings to
+        // each function definition instead.
+        // Target backends use these attributes when selecting a per-function subtarget, so
+        // both target-aware IR optimization and MCJIT code generation can use the host ISA.
+        let cpu = LLVMGetHostCPUName();
+        let features = LLVMGetHostCPUFeatures();
+        if cpu.is_null() || features.is_null() {
+            if !cpu.is_null() {
+                LLVMDisposeMessage(cpu);
             }
-            LLVMRunFunctionPassManager(fpm, f.val);
-        }
-        for fv in self.printfs.values() {
-            LLVMRunFunctionPassManager(fpm, *fv);
-        }
-        for main in mains {
-            LLVMRunFunctionPassManager(fpm, main);
+            if !features.is_null() {
+                LLVMDisposeMessage(features);
+            }
+            return err!("failed to query LLVM host CPU information");
         }
 
-        LLVMFinalizeFunctionPassManager(fpm);
-        LLVMRunPassManager(mpm, self.module);
-        LLVMDisposePassManager(fpm);
-        LLVMDisposePassManager(mpm);
+        let cpu_len = CStr::from_ptr(cpu).to_bytes().len() as libc::c_uint;
+        let features_len = CStr::from_ptr(features).to_bytes().len() as libc::c_uint;
+        let mut func = LLVMGetFirstFunction(self.module);
+        while !func.is_null() {
+            // Do not attach target attributes to external declarations.
+            if LLVMCountBasicBlocks(func) != 0 {
+                let cpu_attr = LLVMCreateStringAttribute(
+                    self.ctx,
+                    c_str!("target-cpu"),
+                    "target-cpu".len() as libc::c_uint,
+                    cpu,
+                    cpu_len,
+                );
+                LLVMAddAttributeAtIndex(func, llvm_sys::LLVMAttributeFunctionIndex, cpu_attr);
+
+                let features_attr = LLVMCreateStringAttribute(
+                    self.ctx,
+                    c_str!("target-features"),
+                    "target-features".len() as libc::c_uint,
+                    features,
+                    features_len,
+                );
+                LLVMAddAttributeAtIndex(
+                    func,
+                    llvm_sys::LLVMAttributeFunctionIndex,
+                    features_attr,
+                );
+            }
+            func = LLVMGetNextFunction(func);
+        }
+        LLVMDisposeMessage(cpu);
+        LLVMDisposeMessage(features);
+
+        let opts = LLVMCreatePassBuilderOptions();
+        #[cfg(debug_assertions)]
+        LLVMPassBuilderOptionsSetVerifyEach(opts, 1);
+
+        // Give PassBuilder MCJIT's TargetMachine. Together with the per-function host
+        // attributes above, this makes target-dependent analyses available to the pipeline.
+        let target_machine =
+            llvm_sys::execution_engine::LLVMGetExecutionEngineTargetMachine(self.engine);
+        let err = LLVMRunPasses(self.module, pipeline, target_machine, opts);
+        LLVMDisposePassBuilderOptions(opts);
+
+        if !err.is_null() {
+            let msg = LLVMGetErrorMessage(err);
+            let msg_s = CStr::from_ptr(msg).to_string_lossy().into_owned();
+            LLVMDisposeErrorMessage(msg);
+            return err!("failed to run LLVM optimization passes: {}", msg_s);
+        }
         Ok(())
     }
 
     pub unsafe fn init(types: &'b mut Typer<'a>, cfg: Config) -> Result<Generator<'a, 'b>> {
+        if cfg.opt_level < 0 || cfg.opt_level > 3 {
+            return err!("unrecognized opt level");
+        }
         if llvm_sys::support::LLVMLoadLibraryPermanently(ptr::null()) != 0 {
             return err!("failed to load in-process library");
         }
@@ -792,7 +836,13 @@ impl<'a, 'b> Generator<'a, 'b> {
         LLVMLinkInMCJIT();
         let mut maybe_engine = MaybeUninit::<LLVMExecutionEngineRef>::uninit();
         let mut err: *mut c_char = ptr::null_mut();
-        if LLVMCreateExecutionEngineForModule(maybe_engine.as_mut_ptr(), module, &mut err) != 0 {
+        if LLVMCreateJITCompilerForModule(
+            maybe_engine.as_mut_ptr(),
+            module,
+            cfg.opt_level as libc::c_uint,
+            &mut err,
+        ) != 0
+        {
             let res = err!(
                 "failed to create program: {}",
                 CStr::from_ptr(err).to_str().unwrap()
@@ -838,18 +888,18 @@ impl<'a, 'b> Generator<'a, 'b> {
     }
 
     pub unsafe fn dump_module(&mut self) -> Result<String> {
-        let mains = self.gen_main()?;
+        self.gen_main()?;
         self.verify()?;
-        self.optimize(mains.iter().map(|(_, x)| x).cloned())?;
+        self.optimize()?;
         Ok(self.dump_module_inner())
     }
 
     // For benchmarking.
     #[cfg(all(test, feature = "unstable"))]
     pub unsafe fn compile_main(&mut self) -> Result<()> {
-        let mains = self.gen_main()?;
+        self.gen_main()?;
         self.verify()?;
-        self.optimize(mains.iter().map(|(_, x)| x).cloned())?;
+        self.optimize()?;
         let addr = LLVMGetFunctionAddress(self.engine, c_str!("__frawk_main"));
         ptr::read_volatile(&addr);
         Ok(())
@@ -1648,8 +1698,8 @@ impl<'a> View<'a> {
         let usize_ty =
             LLVMIntTypeInContext(self.ctx, mem::size_of::<*mut ()>() as libc::c_uint * 8);
         let len = args.len() as libc::c_uint;
-        let types_ty = LLVMArrayType(u32_ty, len);
-        let args_ty = LLVMArrayType(usize_ty, len);
+        let types_ty = LLVMArrayType2(u32_ty, len as u64);
+        let args_ty = LLVMArrayType2(usize_ty, len as u64);
         let types_array = LLVMBuildAlloca(builder, types_ty, c_str!(""));
         let args_array = LLVMBuildAlloca(builder, args_ty, c_str!(""));
         let zero = LLVMConstInt(u32_ty, 0, /*sign_extend=*/ 0);
@@ -1812,7 +1862,7 @@ impl<'a> View<'a> {
         let bb = LLVMAppendBasicBlockInContext(self.ctx, f, c_str!(""));
         LLVMPositionBuilderAtEnd(builder, bb);
         let len = n_args as libc::c_uint;
-        let args_ty = LLVMArrayType(str_ty, len);
+        let args_ty = LLVMArrayType2(str_ty, len as u64);
         let args_array = LLVMBuildAlloca(builder, args_ty, c_str!(""));
         let zero = LLVMConstInt(u32_ty, 0, /*sign_extend=*/ 0);
 

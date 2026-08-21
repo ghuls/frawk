@@ -33,27 +33,27 @@ frawk is dual-licensed under MIT or Apache 2.0.
 
 *Note: frawk uses some nightly-only Rust features by default.
 Build [without the `unstable`](https://github.com/ezrosent/frawk#building-using-stable)
-feature to build on stable.*  
+feature to build on stable.*
 
-You will need to [install Rust](https://rustup.rs/). If you have not updated rust in a while, 
+You will need to [install Rust](https://rustup.rs/). If you have not updated rust in a while,
 run `rustup update nightly` (or `rustup update` if building using stable). If you would like
-to use the LLVM backend, you will need an installation of LLVM 12 on your machine: 
+to use the LLVM backend, you will need an installation of LLVM 17-22 on your machine:
 
 * See [this site](https://apt.llvm.org/) for installation instructions on some debian-based Linux distros.
   See also the comments on [this issue](https://github.com/ezrosent/frawk/issues/63) for docker files that
   can be used to build a binary on Ubuntu.
-* On Arch `pacman -Sy llvm llvm-libs` and a C compiler (e.g. `clang`) are sufficient as of September 2020.
-* `brew install llvm@12` or similar seem to work on Mac OS.
+* On Arch `pacman -Sy llvm llvm-libs` and a C compiler (e.g. `clang`) are sufficient.
+* `brew install llvm@18` or similar seem to work on Mac OS.
 
 Depending on where your package manager puts these libraries, you may need to
-point `LLVM_SYS_120_PREFIX` at the llvm library installation (e.g.
-`/usr/lib/llvm-12` on Linux or `/usr/local/opt/llvm@12` on Mac OS when installing llvm@12 via Homebrew).
+point `LLVM_SYS_180_PREFIX` at the llvm library installation (e.g.
+`/usr/lib/llvm-18` on Linux or `/usr/local/opt/llvm@18` on Mac OS when installing llvm@18 via Homebrew).
 
 ### Building Without LLVM
 
 While the LLVM backend is recommended, it is possible to build frawk only with
 support for the Cranelift-based JIT and its bytecode interpreter. To do this,
-build without the `llvm_backend` feature. The Cranelift backend provides
+build without the `llvm<llvm_version>` feature. The Cranelift backend provides
 comparable performance to LLVM for smaller scripts, but LLVM's optimizations
 can sometimes deliver a substantial performance boost over Cranelift (see the
 [benchmarks](https://github.com/ezrosent/frawk/blob/master/info/performance.md)
@@ -73,19 +73,23 @@ add to your `PATH` if you so choose:
 
 ```
 $ cd <frawk repo path>
-# With LLVM
+# With recommended defaults for Linux, Mac OS or Windows: use_mimalloc,allow_avx2,unstable
 $ cargo +nightly install --path .
-# Without LLVM, but with other recommended defaults
+$ cargo +nightly install --path . --no-default-features --features use_mimalloc,allow_avx2,unstable
+
+# With jemalloc instead of mimalloc as memory allocator (Linux, Mac OS):
 $ cargo +nightly install --path . --no-default-features --features use_jemalloc,allow_avx2,unstable
 
-# Use mimalloc instead of jemalloc when building on Windows. Also works on Linux and Mac OS.
-$ cargo +nightly install --path . --no-default-features --features use_mimalloc,allow_avx2,unstable
+# With recommended defaults and LLVM backend (Linux and Mac OS):
+# Choose LLVM version feature that matches your installed LLVM version:
+#   "llvm17", "llvm18", "llvm19", "llvm20", "llvm21" or "llvm22"
+$ cargo +nightly install --path . --no-default-features --features use_mimalloc,allow_avx2,unstable,llvm18
 
 # Cross compile frawk for Windows with recommended features.
 $ cargo +nightly install --path . --target x86_64-pc-windows-gnu --no-default-features --features use_mimalloc,allow_avx2,unstable
 ```
 
-frawk is now on [crates.io](https://crates.io/crates/frawk), so running 
+frawk is now on [crates.io](https://crates.io/crates/frawk), so running
 `cargo +nightly install frawk` with the desired features should also work.
 
 ## Bugs and Feature Requests

@@ -2,6 +2,36 @@
 #![cfg_attr(feature = "unstable", feature(core_intrinsics))]
 #![cfg_attr(feature = "unstable", feature(test))]
 #![cfg_attr(feature = "unstable", feature(write_all_vectored))]
+
+#[cfg(all(
+    feature = "llvm_backend",
+    not(any(
+        feature = "llvm17",
+        feature = "llvm18",
+        feature = "llvm19",
+        feature = "llvm20",
+        feature = "llvm21",
+        feature = "llvm22",
+    ))
+))]
+compile_error!("llvm_backend requires selecting exactly one LLVM version feature");
+
+cfg_if::cfg_if! {
+    if #[cfg(feature = "llvm17")] {
+        extern crate llvm_sys_170 as llvm_sys;
+    } else if #[cfg(feature = "llvm18")] {
+        extern crate llvm_sys_181 as llvm_sys;
+    } else if #[cfg(feature = "llvm19")] {
+        extern crate llvm_sys_191 as llvm_sys;
+    } else if #[cfg(feature = "llvm20")] {
+        extern crate llvm_sys_201 as llvm_sys;
+    } else if #[cfg(feature = "llvm21")] {
+        extern crate llvm_sys_211 as llvm_sys;
+    } else if #[cfg(feature = "llvm22")] {
+        extern crate llvm_sys_221 as llvm_sys;
+    }
+}
+
 #[macro_use]
 pub mod common;
 

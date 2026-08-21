@@ -155,7 +155,12 @@ impl<'a> CodeGenerator for View<'a> {
                 let new_global = to;
                 match val.1 {
                     MapIntInt | MapIntStr | MapIntFloat | MapStrInt | MapStrStr | MapStrFloat => {
-                        let prev_global = LLVMBuildLoad(self.f.builder, param, c_str!(""));
+                        let prev_global = LLVMBuildLoad2(
+                            self.f.builder,
+                            self.tmap.get_ty(val.1),
+                            param,
+                            c_str!(""),
+                        );
                         self.drop_val(prev_global, val.1);
                         LLVMBuildStore(self.f.builder, new_global, param);
                     }
@@ -180,7 +185,8 @@ impl<'a> CodeGenerator for View<'a> {
                     // alloca only fails with an iterator or null type; but we have checked the type
                     // already.
                     let loc = self.alloca(val.1).unwrap();
-                    let prev = LLVMBuildLoad(self.f.builder, loc, c_str!(""));
+                    let prev =
+                        LLVMBuildLoad2(self.f.builder, self.tmap.get_ty(val.1), loc, c_str!(""));
                     self.drop_val(prev, val.1);
                     LLVMBuildStore(self.f.builder, to, loc);
                     self.f.locals.insert(val, loc);
@@ -407,8 +413,9 @@ impl<'a> CodeGenerator for View<'a> {
                 let int_ty = self.tmap.get_ty(Ty::Int);
                 arg_vs.push(LLVMConstInt(int_ty, *append as u64, 0));
             }
-            LLVMBuildCall(
+            LLVMBuildCall2(
                 self.f.builder,
+                LLVMGlobalGetValueType(printf_fn),
                 printf_fn,
                 arg_vs.as_mut_ptr(),
                 arg_vs.len() as libc::c_uint,
@@ -427,8 +434,9 @@ impl<'a> CodeGenerator for View<'a> {
             for a in args.iter().cloned() {
                 arg_vs.push(self.get_val(a)?);
             }
-            let resv = LLVMBuildCall(
+            let resv = LLVMBuildCall2(
                 self.f.builder,
+                LLVMGlobalGetValueType(sprintf_fn),
                 sprintf_fn,
                 arg_vs.as_mut_ptr(),
                 arg_vs.len() as libc::c_uint,
@@ -451,8 +459,9 @@ impl<'a> CodeGenerator for View<'a> {
                 let int_ty = self.tmap.get_ty(Ty::Int);
                 args_v.push(LLVMConstInt(int_ty, *fspec as u64, /*sign_extend=*/ 0));
             }
-            LLVMBuildCall(
+            LLVMBuildCall2(
                 self.f.builder,
+                LLVMGlobalGetValueType(print_fn),
                 print_fn,
                 args_v.as_mut_ptr(),
                 args_v.len() as libc::c_uint,
@@ -466,7 +475,8 @@ impl<'a> CodeGenerator for View<'a> {
             let sv = self.get_val((src, ty))?;
             if let Ty::Str = ty {
                 self.call(intrinsic!(ref_str), &mut [sv]);
-                let loaded = LLVMBuildLoad(self.f.builder, sv, c_str!(""));
+                let loaded =
+                    LLVMBuildLoad2(self.f.builder, self.tmap.get_ty(Ty::Str), sv, c_str!(""));
                 self.bind_val((dst, Ty::Str), loaded)
             } else {
                 if ty.is_array() {
@@ -512,7 +522,12 @@ impl<'a> CodeGenerator for View<'a> {
     fn iter_hasnext(&mut self, dst: Ref, iter: Ref) -> Result<()> {
         unsafe {
             let istate = self.get_iter(iter)?;
-            let cur = LLVMBuildLoad(self.f.builder, istate.cur_index, c_str!(""));
+            let cur = LLVMBuildLoad2(
+                self.f.builder,
+                self.tmap.get_ty(Ty::Int),
+                istate.cur_index,
+                c_str!(""),
+            );
             let len = istate.len;
             let hasnext = self.cmp(Either::Left(Pred::LLVMIntULT), cur, len);
             self.bind_val(dst, hasnext)
@@ -521,16 +536,23 @@ impl<'a> CodeGenerator for View<'a> {
     fn iter_getnext(&mut self, dst: Ref, iter: Ref) -> Result<()> {
         let (res, res_loc) = unsafe {
             let istate = self.get_iter(iter)?;
-            let cur = LLVMBuildLoad(self.f.builder, istate.cur_index, c_str!(""));
-            let indices = &mut [cur];
-            let res_loc = LLVMBuildGEP(
+            let cur = LLVMBuildLoad2(
                 self.f.builder,
+                self.tmap.get_ty(Ty::Int),
+                istate.cur_index,
+                c_str!(""),
+            );
+            let indices = &mut [cur];
+            let elt_ty = self.tmap.get_ty(dst.1);
+            let res_loc = LLVMBuildGEP2(
+                self.f.builder,
+                elt_ty,
                 istate.iter_ptr,
                 indices.as_mut_ptr(),
                 indices.len() as libc::c_uint,
                 c_str!(""),
             );
-            let res = LLVMBuildLoad(self.f.builder, res_loc, c_str!(""));
+            let res = LLVMBuildLoad2(self.f.builder, elt_ty, res_loc, c_str!(""));
 
             let next_ix = LLVMBuildAdd(
                 self.f.builder,
@@ -665,9 +687,11 @@ unsafe fn alloc_local(
                 _ => unreachable!(),
             };
             let map_ty = tmap.get_ty(ty);
-            let v = LLVMBuildCall(
+            let alloc_fn = intrinsics.get(func);
+            let v = LLVMBuildCall2(
                 builder,
-                intrinsics.get(func),
+                LLVMGlobalGetValueType(alloc_fn),
+                alloc_fn,
                 ptr::null_mut(),
                 0,
                 c_str!(""),
@@ -982,8 +1006,9 @@ impl<'a, 'b> Generator<'a, 'b> {
         }
         // Pass the runtime last.
         args[main_info.num_args - 1] = LLVMGetParam(decl, 0);
-        LLVMBuildCall(
+        LLVMBuildCall2(
             builder,
+            LLVMGlobalGetValueType(main_info.val),
             main_info.val,
             args.as_mut_ptr(),
             args.len() as libc::c_uint,
@@ -991,21 +1016,32 @@ impl<'a, 'b> Generator<'a, 'b> {
         );
 
         // now, drop the globals
-        for (mut local, ty) in to_drop {
+        for (local, ty) in to_drop {
             if let Ty::Str = ty {
                 // drop the reference directly
                 // TODO replace with this line with a call to drop_str
-                LLVMBuildCall(builder, self.drop_str, &mut local, 1, c_str!(""));
+                let mut args = [local];
+                LLVMBuildCall2(
+                    builder,
+                    LLVMGlobalGetValueType(self.drop_str),
+                    self.drop_str,
+                    args.as_mut_ptr(),
+                    args.len() as libc::c_uint,
+                    c_str!(""),
+                );
             } else {
                 // issue the load, then call drop.
                 debug_assert!(ty.is_array());
                 let drop_fn = self.intrinsics.map_drop_fn(ty).unwrap();
 
-                LLVMBuildCall(
+                let loaded = LLVMBuildLoad2(builder, self.type_map.get_ty(ty), local, c_str!(""));
+                let mut args = [loaded];
+                LLVMBuildCall2(
                     builder,
+                    LLVMGlobalGetValueType(drop_fn),
                     drop_fn,
-                    &mut LLVMBuildLoad(builder, local, c_str!("")),
-                    1,
+                    args.as_mut_ptr(),
+                    args.len() as libc::c_uint,
                     c_str!(""),
                 );
             }
@@ -1248,7 +1284,12 @@ impl<'a> View<'a> {
             ))
         } else if let Some(v) = self.f.locals.get(&local) {
             if local.1.is_array() && !array_ptr {
-                Some(LLVMBuildLoad(self.f.builder, *v, c_str!("")))
+                Some(LLVMBuildLoad2(
+                    self.f.builder,
+                    self.tmap.get_ty(local.1),
+                    *v,
+                    c_str!(""),
+                ))
             } else {
                 Some(*v)
             }
@@ -1262,7 +1303,7 @@ impl<'a> View<'a> {
                 // NB: depends on what we do when calling UDFs that take maps as arguments.
                 //     but either way, no.
                 //     We _should_ clarify calling convention re: maps though.
-                LLVMBuildLoad(self.f.builder, gv, c_str!(""))
+                LLVMBuildLoad2(self.f.builder, self.tmap.get_ty(local.1), gv, c_str!(""))
             })
         } else {
             None
@@ -1305,30 +1346,47 @@ impl<'a> View<'a> {
         self.decls[self.f.id].globals.get(&reg).is_some()
     }
 
-    unsafe fn ref_val(&mut self, mut val: LLVMValueRef, ty: Ty) {
+    unsafe fn ref_val(&mut self, val: LLVMValueRef, ty: Ty) {
         use Ty::*;
         let func = match ty {
             ty if ty.is_array() => self.intrinsics.get(intrinsic!(ref_map)),
             Str => self.intrinsics.get(intrinsic!(ref_str)),
             _ => return,
         };
-        LLVMBuildCall(self.f.builder, func, &mut val, 1, c_str!(""));
+        let mut args = [val];
+        LLVMBuildCall2(
+            self.f.builder,
+            LLVMGlobalGetValueType(func),
+            func,
+            args.as_mut_ptr(),
+            args.len() as libc::c_uint,
+            c_str!(""),
+        );
     }
 
-    unsafe fn drop_val(&mut self, mut val: LLVMValueRef, ty: Ty) {
+    unsafe fn drop_val(&mut self, val: LLVMValueRef, ty: Ty) {
         use Ty::*;
         let func = match ty {
             ty if ty.is_array() => self.intrinsics.map_drop_fn(ty).unwrap(),
             Str => self.drop_str,
             _ => return,
         };
-        LLVMBuildCall(self.f.builder, func, &mut val, 1, c_str!(""));
+        let mut args = [val];
+        LLVMBuildCall2(
+            self.f.builder,
+            LLVMGlobalGetValueType(func),
+            func,
+            args.as_mut_ptr(),
+            args.len() as libc::c_uint,
+            c_str!(""),
+        );
     }
 
     unsafe fn call_builtin(&mut self, f: BuiltinFunc, args: &mut [LLVMValueRef]) -> LLVMValueRef {
         let fv = f.get_val(self.module, self.tmap);
-        LLVMBuildCall(
+        LLVMBuildCall2(
             self.f.builder,
+            LLVMGlobalGetValueType(fv),
             fv,
             args.as_mut_ptr(),
             args.len() as libc::c_uint,
@@ -1343,8 +1401,9 @@ impl<'a> View<'a> {
         args: &mut [LLVMValueRef],
     ) -> LLVMValueRef {
         let f = self.intrinsics.get(func);
-        LLVMBuildCall(
+        LLVMBuildCall2(
             builder,
+            LLVMGlobalGetValueType(f),
             f,
             args.as_mut_ptr(),
             args.len() as libc::c_uint,
@@ -1460,7 +1519,8 @@ impl<'a> View<'a> {
             self.drop_val(llval, l.1);
         }
         if let Ty::Str = ty {
-            let loaded = LLVMBuildLoad(self.f.builder, to_return, c_str!(""));
+            let loaded =
+                LLVMBuildLoad2(self.f.builder, self.tmap.get_ty(ty), to_return, c_str!(""));
             LLVMBuildRet(self.f.builder, loaded);
         } else {
             LLVMBuildRet(self.f.builder, to_return);
@@ -1495,8 +1555,9 @@ impl<'a> View<'a> {
                 let rt_ix = argvs.len() - 1;
                 debug_assert_eq!(rt_ix + 1, target.num_args);
                 argvs[rt_ix] = self.runtime_val();
-                let resv = LLVMBuildCall(
+                let resv = LLVMBuildCall2(
                     self.f.builder,
+                    LLVMGlobalGetValueType(target.val),
                     target.val,
                     argvs.as_mut_ptr(),
                     argvs.len() as libc::c_uint,
@@ -1597,11 +1658,25 @@ impl<'a> View<'a> {
             let mut index = [zero, LLVMConstInt(u32_ty, i as u64, /*sign_extend=*/ 0)];
 
             // Store a u32 code representing the type into the current index.
-            let ty_ptr = LLVMBuildGEP(builder, types_array, index.as_mut_ptr(), 2, c_str!(""));
+            let ty_ptr = LLVMBuildGEP2(
+                builder,
+                types_ty,
+                types_array,
+                index.as_mut_ptr(),
+                2,
+                c_str!(""),
+            );
             let tval = LLVMConstInt(u32_ty, t as u32 as u64, /*sign_extend=*/ 0);
             LLVMBuildStore(builder, tval, ty_ptr);
 
-            let arg_ptr = LLVMBuildGEP(builder, args_array, index.as_mut_ptr(), 2, c_str!(""));
+            let arg_ptr = LLVMBuildGEP2(
+                builder,
+                args_ty,
+                args_array,
+                index.as_mut_ptr(),
+                2,
+                c_str!(""),
+            );
             // Translate `i` to the param of the generated function.
             let offset = 2;
             let argval = LLVMGetParam(f, i as libc::c_uint + offset);
@@ -1614,9 +1689,17 @@ impl<'a> View<'a> {
             LLVMBuildStore(builder, cast_val, arg_ptr);
         }
         let mut start_index = [zero, zero];
-        let args_ptr = LLVMBuildGEP(builder, args_array, start_index.as_mut_ptr(), 2, c_str!(""));
-        let tys_ptr = LLVMBuildGEP(
+        let args_ptr = LLVMBuildGEP2(
             builder,
+            args_ty,
+            args_array,
+            start_index.as_mut_ptr(),
+            2,
+            c_str!(""),
+        );
+        let tys_ptr = LLVMBuildGEP2(
+            builder,
+            types_ty,
             types_array,
             start_index.as_mut_ptr(),
             2,
@@ -1640,8 +1723,9 @@ impl<'a> View<'a> {
                     LLVMGetParam(f, arg_lltys.len() as libc::c_uint - 2),
                     LLVMGetParam(f, arg_lltys.len() as libc::c_uint - 1),
                 ];
-                LLVMBuildCall(
+                LLVMBuildCall2(
                     builder,
+                    LLVMGlobalGetValueType(intrinsic),
                     intrinsic,
                     args.as_mut_ptr(),
                     args.len() as libc::c_uint,
@@ -1659,8 +1743,9 @@ impl<'a> View<'a> {
                     tys_ptr,
                     len_v,
                 ];
-                LLVMBuildCall(
+                LLVMBuildCall2(
                     builder,
+                    LLVMGlobalGetValueType(intrinsic),
                     intrinsic,
                     args.as_mut_ptr(),
                     args.len() as libc::c_uint,
@@ -1677,8 +1762,9 @@ impl<'a> View<'a> {
                     tys_ptr,
                     len_v,
                 ];
-                let resv = LLVMBuildCall(
+                let resv = LLVMBuildCall2(
                     builder,
+                    LLVMGlobalGetValueType(intrinsic),
                     intrinsic,
                     args.as_mut_ptr(),
                     args.len() as libc::c_uint,
@@ -1732,19 +1818,34 @@ impl<'a> View<'a> {
 
         for i in 0..n_args {
             let mut index = [zero, LLVMConstInt(u32_ty, i as u64, /*sign_extend=*/ 0)];
-            let arg_ptr = LLVMBuildGEP(builder, args_array, index.as_mut_ptr(), 2, c_str!(""));
+            let arg_ptr = LLVMBuildGEP2(
+                builder,
+                args_ty,
+                args_array,
+                index.as_mut_ptr(),
+                2,
+                c_str!(""),
+            );
             // We are storing index `i` in the array, which is going to be argument `i + 1`
             let argval = LLVMGetParam(f, i as libc::c_uint + 1);
             LLVMBuildStore(builder, argval, arg_ptr);
         }
         let mut start_index = [zero, zero];
-        let args_ptr = LLVMBuildGEP(builder, args_array, start_index.as_mut_ptr(), 2, c_str!(""));
+        let args_ptr = LLVMBuildGEP2(
+            builder,
+            args_ty,
+            args_array,
+            start_index.as_mut_ptr(),
+            2,
+            c_str!(""),
+        );
         let len_v = LLVMConstInt(int_ty, len as u64, /*sign_extend=*/ 0);
         if is_stdout {
             let intrinsic = self.intrinsics.get(intrinsic!(print_all_stdout));
             let mut args = [LLVMGetParam(f, 0), args_ptr, len_v];
-            LLVMBuildCall(
+            LLVMBuildCall2(
                 builder,
+                LLVMGlobalGetValueType(intrinsic),
                 intrinsic,
                 args.as_mut_ptr(),
                 args.len() as libc::c_uint,
@@ -1756,8 +1857,9 @@ impl<'a> View<'a> {
             let out_v = LLVMGetParam(f, 1 + len);
             let spec_v = LLVMGetParam(f, 1 + len + 1);
             let mut args = [LLVMGetParam(f, 0), args_ptr, len_v, out_v, spec_v];
-            LLVMBuildCall(
+            LLVMBuildCall2(
                 builder,
+                LLVMGlobalGetValueType(intrinsic),
                 intrinsic,
                 args.as_mut_ptr(),
                 args.len() as libc::c_uint,

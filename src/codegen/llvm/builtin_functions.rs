@@ -68,7 +68,7 @@ pub(crate) unsafe fn gen_drop_str(
     LLVMPositionBuilderAtEnd(builder, entry);
     // Load the string's representation
     let arg = LLVMGetParam(decl, 0);
-    let str_rep = LLVMBuildLoad(builder, arg, c_str!(""));
+    let str_rep = LLVMBuildLoad2(builder, tmap.get_ty(Ty::Str), arg, c_str!(""));
 
     // TODO: Could we just truncate to int3 here? This is closer to the Rust version but that may
     // be more idiomatic llvm.
@@ -94,7 +94,15 @@ pub(crate) unsafe fn gen_drop_str(
 
     // Slow path, call the slow drop
     LLVMPositionBuilderAtEnd(builder, slow);
-    LLVMBuildCall(builder, drop_slow, [arg, tag].as_mut_ptr(), 2, c_str!(""));
+    let mut args = [arg, tag];
+    LLVMBuildCall2(
+        builder,
+        LLVMGlobalGetValueType(drop_slow),
+        drop_slow,
+        args.as_mut_ptr(),
+        args.len() as libc::c_uint,
+        c_str!(""),
+    );
     LLVMBuildRetVoid(builder);
     LLVMDisposeBuilder(builder);
     decl
